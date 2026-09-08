@@ -20,7 +20,7 @@
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0;padding:0;width:100%;background:var(--bg-deep);font-family:'Inter',sans-serif;}
   #app{position:fixed; inset:0; width:100%;height:100vh;background:#0a0d12;}
-  #scrollSpacer{ position:relative; width:100%; display:none; }
+  #scrollSpacer{ position:relative; width:100%; display:none; pointer-events:none; }
   canvas#scene{position:absolute;inset:0;display:block;width:100%;height:100%;}
   .glow-text{ text-shadow:0 0 8px currentColor, 0 0 24px rgba(108,140,255,0.35); }
 
@@ -101,7 +101,7 @@
 
   /* ---------- Content panel (side-anchored, follows the turn) ---------- */
   #panel{
-    position:absolute; top:50%; left:26px; width:min(400px,86vw); z-index:30;
+    position:absolute; top:50%; left:26px; width:min(400px,86vw); z-index:45;
     transform:translateY(-50%) translateX(-120%) scale(0.92); pointer-events:none;
     transition:transform .55s cubic-bezier(.2,.9,.25,1), opacity .4s ease;
     opacity:0;
@@ -125,6 +125,7 @@
     display:inline-flex; align-items:center; gap:8px; font-family:'Space Grotesk',sans-serif; font-weight:600;
     font-size:13px; color:#ffffff; background:var(--zc,var(--primary)); padding:12px 22px; border-radius:30px;
     text-decoration:none; box-shadow:0 8px 20px -4px var(--zc,rgba(108,140,255,.5)); transition:transform .15s ease;
+    position:relative; z-index:5; cursor:pointer; pointer-events:auto;
   }
   #panelInner a.link:hover{ transform:translateY(-2px); }
   #panelInner .skills-grid{ display:flex; flex-wrap:wrap; gap:9px; margin-bottom:6px;}
@@ -906,13 +907,13 @@ function renderPanel(zone){
   var html = '<div class="eyebrow">'+zone.eyebrow+'</div><h2>'+zone.title+'</h2><p>'+zone.body+'</p>';
   if(zone.type==='project'){
     html += '<div class="tags">'+zone.tags.map(function(t){return '<span class="tag">'+t+'</span>';}).join('')+'</div>';
-    html += '<a class="link" href="'+zone.link+'" target="_blank" rel="noopener">View on GitHub →</a>';
+    html += '<a class="link" href="'+zone.link+'" target="_blank" rel="noopener" onclick="window.open(\''+zone.link+'\',\'_blank\',\'noopener\'); return true;">View on GitHub →</a>';
   } else if(zone.type==='skills'){
     html += '<div class="skills-grid">'+zone.skills.map(function(s){return '<span class="skill-pill">'+s+'</span>';}).join('')+'</div>';
   } else if(zone.type==='contact'){
     html += '<div class="contact-row">'+
       '<a class="link" href="mailto:'+zone.email+'">Email Raiden →</a>'+
-      '<a class="link" style="background:transparent;color:'+zone.color+';border:1px solid '+zone.color+';box-shadow:none;" href="'+zone.github+'" target="_blank" rel="noopener">GitHub Profile</a>'+
+      '<a class="link" style="background:transparent;color:'+zone.color+';border:1px solid '+zone.color+';box-shadow:none;" href="'+zone.github+'" target="_blank" rel="noopener" onclick="window.open(\''+zone.github+'\',\'_blank\',\'noopener\'); return true;">GitHub Profile</a>'+
       '</div>';
   }
   panelInner.innerHTML = html;
