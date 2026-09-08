@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>RAIDEN — Drive-Through Portfolio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#090a13;
+    --panel-bg:rgba(14,15,26,0.90);
+    --primary:#6C8CFF;
+    --primary2:#22D3EE;
+    --highlight:#FFB454;
+    --text:#F3F4FA;
+    --text-dim:#9198B8;
+    --border:rgba(255,255,255,0.08);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;width:100%;background:var(--bg-deep);font-family:'Inter',sans-serif;}
+  #app{position:fixed; inset:0; width:100%;height:100vh;background:#0a0d12;}
+  #scrollSpacer{ position:relative; width:100%; display:none; }
+  canvas#scene{position:absolute;inset:0;display:block;width:100%;height:100%;}
+  .glow-text{ text-shadow:0 0 8px currentColor, 0 0 24px rgba(108,140,255,0.35); }
+
+  /* ---------- Start overlay ---------- */
+  #startOverlay{
+    position:absolute; inset:0; z-index:50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:radial-gradient(ellipse at 50% 55%, rgba(40,42,80,0.5), rgba(4,5,10,0.94) 72%);
+    text-align:center; padding:24px; transition:opacity .6s ease, visibility .6s ease;
+  }
+  #startOverlay.hidden{ opacity:0; visibility:hidden; pointer-events:none; }
+  .bolt{ display:inline-block; font-size:32px; color:var(--primary2); }
+  #startOverlay h1{
+    font-family:'Space Grotesk',sans-serif; font-weight:700;
+    font-size:clamp(38px,8.5vw,80px); letter-spacing:1.5px; margin:6px 0 4px;
+    color:var(--text); text-shadow:0 0 14px rgba(108,140,255,0.5), 0 0 44px rgba(34,211,238,0.2);
+  }
+  #startOverlay .role{
+    font-family:'JetBrains Mono',monospace; color:var(--primary2); font-size:clamp(12px,2.2vw,15px);
+    letter-spacing:4px; text-transform:uppercase; margin-bottom:22px;
+  }
+  #startOverlay p.desc{ color:var(--text-dim); max-width:440px; line-height:1.65; font-size:14px; margin:0 0 26px;}
+  .keys{display:flex; gap:10px; margin-bottom:30px; flex-wrap:wrap; justify-content:center;}
+  .key{
+    width:40px;height:40px;border:1px solid var(--border); border-radius:8px;
+    display:flex;align-items:center;justify-content:center;color:var(--text-dim);
+    font-family:'JetBrains Mono',monospace; font-size:14px; background:rgba(255,255,255,0.03);
+  }
+  #startBtn{
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14.5px; letter-spacing:1px;
+    color:#080810; background:linear-gradient(135deg,var(--primary),var(--primary2));
+    border:none; padding:15px 38px; border-radius:40px; cursor:pointer;
+    box-shadow:0 0 26px rgba(108,140,255,0.4); transition:transform .15s ease, box-shadow .15s ease;
+  }
+  #startBtn:hover{ transform:translateY(-2px); box-shadow:0 0 34px rgba(108,140,255,0.6); }
+  #startOverlay .credit{ margin-top:24px; color:var(--text-dim); font-size:11px; letter-spacing:1px; font-family:'JetBrains Mono',monospace; opacity:.65;}
+
+  /* ---------- HUD ---------- */
+  #hud{ position:absolute; inset:0; z-index:20; pointer-events:none; opacity:0; transition:opacity .6s ease; }
+  #hud.visible{ opacity:1; }
+
+  #rail{
+    position:absolute; top:18px; left:50%; transform:translateX(-50%);
+    display:flex; gap:0; align-items:center; background:rgba(10,11,20,0.55);
+    border:1px solid var(--border); backdrop-filter:blur(8px);
+    border-radius:30px; padding:10px 18px;
+  }
+  .dot-wrap{ display:flex; flex-direction:column; align-items:center; width:62px; position:relative;}
+  .dot-wrap:not(:last-child)::after{
+    content:''; position:absolute; top:5px; left:50%; width:100%; height:2px; background:var(--border); z-index:0;
+  }
+  .dot{
+    width:10px;height:10px;border-radius:50%; background:#26283e; border:2px solid #34364e; z-index:1;
+    transition:all .3s ease;
+  }
+  .dot.active{ background:var(--zc,var(--primary)); border-color:var(--zc,var(--primary)); box-shadow:0 0 10px var(--zc,var(--primary)); animation:dotPulse 1.3s ease-in-out infinite; }
+  @keyframes dotPulse{ 0%,100%{ box-shadow:0 0 8px var(--zc,var(--primary)); transform:scale(1);} 50%{ box-shadow:0 0 18px var(--zc,var(--primary)); transform:scale(1.18);} }
+  .dot.passed{ background:var(--text-dim); border-color:var(--text-dim); }
+  .dot-label{ font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--text-dim); margin-top:6px; letter-spacing:.5px; text-align:center;}
+
+  #speedo{
+    position:absolute; bottom:26px; left:26px; font-family:'JetBrains Mono',monospace;
+    background:rgba(10,11,20,0.55); border:1px solid var(--border); border-radius:14px; padding:12px 16px;
+    color:var(--text); backdrop-filter:blur(8px); min-width:118px;
+  }
+  #speedo .val{ font-size:24px; font-weight:700; color:var(--primary2); text-shadow:0 0 10px rgba(34,211,238,.5); }
+  #speedo .unit{ font-size:10px; color:var(--text-dim); letter-spacing:1px; }
+  #speedBar{ width:100%; height:4px; background:#1c1d30; border-radius:2px; margin-top:8px; overflow:hidden;}
+  #speedBarFill{ height:100%; width:0%; background:linear-gradient(90deg,var(--primary),var(--primary2)); transition:width .1s linear;}
+
+  #speedo{ transition:transform .15s ease; }
+
+  #hint{
+    position:absolute; bottom:26px; right:26px; font-family:'JetBrains Mono',monospace; font-size:11px;
+    color:var(--text-dim); background:rgba(10,11,20,0.5); border:1px solid var(--border); border-radius:12px;
+    padding:10px 14px; text-align:right; line-height:1.6; backdrop-filter:blur(8px);
+  }
+
+  /* ---------- Content panel (side-anchored, follows the turn) ---------- */
+  #panel{
+    position:absolute; top:50%; left:26px; width:min(400px,86vw); z-index:30;
+    transform:translateY(-50%) translateX(-120%) scale(0.92); pointer-events:none;
+    transition:transform .55s cubic-bezier(.2,.9,.25,1), opacity .4s ease;
+    opacity:0;
+  }
+  #panel.side-right{ left:auto; right:26px; transform:translateY(-50%) translateX(120%) scale(0.92); }
+  #panel.show{ transform:translateY(-50%) translateX(0%) scale(1); pointer-events:auto; opacity:1; }
+  #panelInner{
+    background:#ffffff; border:1px solid rgba(20,30,50,0.08); border-radius:20px;
+    padding:28px 30px 30px 26px; position:relative; overflow:hidden;
+    box-shadow:0 24px 60px rgba(20,30,60,0.18), 0 4px 16px rgba(20,30,60,0.08);
+  }
+  #panelInner::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:5px; background:var(--zc,var(--primary));
+  }
+  #panelInner .eyebrow{ font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:3px; color:var(--zc,var(--primary)); text-transform:uppercase; font-weight:700;}
+  #panelInner h2{ font-family:'Space Grotesk',sans-serif; font-size:25px; margin:8px 0 12px; color:#101322; font-weight:700;}
+  #panelInner p{ color:#5a5f75; font-size:13.5px; line-height:1.65; margin:0 0 16px; }
+  #panelInner .tags{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px;}
+  #panelInner .tag{ font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--zc,var(--primary)); background:rgba(20,30,60,0.045); border:1px solid var(--zc,var(--primary)); padding:4px 10px; border-radius:20px; opacity:.95;}
+  #panelInner a.link{
+    display:inline-flex; align-items:center; gap:8px; font-family:'Space Grotesk',sans-serif; font-weight:600;
+    font-size:13px; color:#ffffff; background:var(--zc,var(--primary)); padding:12px 22px; border-radius:30px;
+    text-decoration:none; box-shadow:0 8px 20px -4px var(--zc,rgba(108,140,255,.5)); transition:transform .15s ease;
+  }
+  #panelInner a.link:hover{ transform:translateY(-2px); }
+  #panelInner .skills-grid{ display:flex; flex-wrap:wrap; gap:9px; margin-bottom:6px;}
+  #panelInner .skill-pill{
+    font-family:'JetBrains Mono',monospace; font-size:12px; color:#2b2f45; background:#f2f4f8;
+    border:1px solid rgba(20,30,50,0.08); padding:8px 14px; border-radius:10px;
+  }
+  #panelInner .contact-row{ display:flex; gap:12px; flex-wrap:wrap; }
+
+  /* ---------- Touch controls ---------- */
+  #touch{ position:absolute; inset:0; z-index:25; pointer-events:none; display:none; }
+  #touch.on{ display:block; }
+  .tbtn{
+    position:absolute; width:64px; height:64px; border-radius:50%; background:rgba(255,255,255,0.06);
+    border:1px solid var(--border); color:var(--primary2); font-size:24px; display:flex; align-items:center;
+    justify-content:center; pointer-events:auto; user-select:none; backdrop-filter:blur(4px);
+  }
+  .tbtn:active{ background:rgba(34,211,238,0.18); }
+  #tUp{ right:96px; bottom:170px; } #tDown{ right:96px; bottom:96px; }
+
+  #vignette{ display:none; }
+
+  #speedLines{
+    position:absolute; inset:0; pointer-events:none; z-index:16; opacity:0;
+    background:repeating-conic-gradient(from 0deg, rgba(255,255,255,0.12) 0deg 1.2deg, transparent 1.2deg 6deg);
+    mask-image:radial-gradient(circle at 50% 50%, transparent 18%, black 70%);
+    -webkit-mask-image:radial-gradient(circle at 50% 50%, transparent 18%, black 70%);
+    transition:opacity .2s ease;
+  }
+
+  @media (max-width:720px){
+    #rail{ padding:8px 10px; }
+    .dot-wrap{ width:36px; }
+    .dot-label{ display:none; }
+    #hint{ display:none; }
+    #panel{ left:50% !important; right:auto !important; top:auto !important; bottom:0 !important;
+      transform:translateX(-50%) translateY(115%) !important; width:94vw; }
+    #panel.show{ transform:translateX(-50%) translateY(0%) !important; }
+    #panelInner{ border-radius:18px 18px 0 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div id="vignette"></div>
+  <div id="speedLines"></div>
+
+  <div id="startOverlay">
+    <div class="bolt">⚡</div>
+    <h1 class="glow-text" style="color:#8fa6ff;">RAIDEN</h1>
+    <div class="role">Backend Developer — code&#8209;with&#8209;raiden</div>
+    <p class="desc">This portfolio is a road. Scroll to drive down it and meet the developer, tour the projects, see the stack, and reach the contact gate at the end. Turns are taken for you.</p>
+    <div class="keys">
+      <div class="key" style="width:auto;padding:0 14px;">SCROLL ↕</div>
+    </div>
+    <button id="startBtn">Start Engine</button>
+    <div class="credit">Scroll or swipe to drive · works on mobile too</div>
+  </div>
+
+  <div id="hud">
+    <div id="rail"></div>
+    <div id="speedo">
+      <span class="val" id="speedVal">0</span><span class="unit"> KM/H</span>
+      <div id="speedBar"><div id="speedBarFill"></div></div>
+    </div>
+    <div id="hint">scroll to drive<br>turns are auto-taken for you</div>
+
+  </div>
+
+  <div id="panel"><div id="panelInner"></div></div>
+
+  <div id="touch"></div>
+</div>
+<div id="scrollSpacer"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============================================================
+   CONTENT — edit this to update the portfolio
+   side: 'left' | 'right'  -> which side the content card appears on
+   (opposite the direction the road curves at that gate)
+   ============================================================ */
+var ZONES = [
+  { id:'home', dist:0, side:'left', color:'#22D3EE', label:'HOME', type:'hero', biome:'city',
+    eyebrow:'Welcome', title:'RAIDEN', body:'Backend developer who builds things with a creative flair rather than copying tutorials. This is the road through my work — drive on.' },
+  { id:'about', dist:150, side:'left', color:'#6C8CFF', label:'ABOUT', type:'about', biome:'forest',
+    eyebrow:'01 · About', title:'About Raiden', body:'Associate Software Engineer focused on backend systems — Python and Django are home turf, with Flask, React and a couple of databases along the way. Builds full projects end to end: chat apps, tools, small games, whatever the idea needs.' },
+  { id:'proj1', dist:290, side:'right', color:'#E0A458', label:'CHAT', type:'project', biome:'desert',
+    eyebrow:'02 · Project', title:'Django Chat App', body:'A real-time chat application built with Django on the backend and vanilla HTML/CSS/JS on the front — rooms, live messaging, and a clean UI.',
+    tags:['Django','Python','HTML/CSS','JavaScript'], link:'https://github.com/code-with-raiden/django-chat-app' },
+  { id:'proj2', dist:410, side:'left', color:'#6FA8DC', label:'GAME', type:'project', biome:'snow',
+    eyebrow:'03 · Project', title:'Bubble Shooter', body:'A browser bubble-shooter game written in JavaScript — canvas rendering, collision detection, and score tracking built from scratch, no game engine.',
+    tags:['JavaScript','Canvas','Game Dev'], link:'https://github.com/code-with-raiden/booble-shooter' },
+  { id:'proj3', dist:530, side:'right', color:'#8F7CF0', label:'QR', type:'project', biome:'space',
+    eyebrow:'04 · Project', title:'Streamlit QR', body:'A QR-code generator tool built with Streamlit and Python — quick to spin up, simple interface, instant results.',
+    tags:['Python','Streamlit'], link:'https://github.com/code-with-raiden/streamlit_qr' },
+  { id:'ipc', dist:660, side:'left', color:'#5FA8E0', label:'IPC', type:'project', biome:'city',
+    eyebrow:'05 · Project', title:'IPC — Integrated Placement Cell', body:'A placement management platform built for Testyantra — streamlining how colleges and companies coordinate campus placements, from student registrations to interview scheduling and offer tracking.',
+    tags:['Django','Python','MySQL','React'], link:'https://github.com/code-with-raiden' },
+  { id:'egypt', dist:800, side:'right', color:'#E0A458', label:'EGYPT', type:'about', biome:'egypt',
+    eyebrow:'06 · Egypt', title:'Egypt', body:'Placeholder content — details coming soon.' },
+  { id:'skills', dist:940, side:'left', color:'#5FBF7A', label:'SKILLS', type:'skills', biome:'forest',
+    eyebrow:'07 · Stack', title:'Tech Stack', body:'The tools in daily rotation:',
+    skills:['Python','Django','Flask','JavaScript','React','MySQL','PostgreSQL','Git','HTML/CSS'] },
+  { id:'contact', dist:1080, side:'left', color:'#FFB454', label:'CONTACT', type:'contact', biome:'city',
+    eyebrow:'08 · Get in touch', title:'Let’s Build Something', body:'Open to backend collaborations and interesting problems. Reach out or check out more work on GitHub.',
+    email:'raiden.sagar6066@gmail.com', github:'https://github.com/code-with-raiden' }
+];
+var TOTAL_DIST = 1120;
+var BIOMES = {
+  city:   { sky:0xbcd8ef, fog:0xbcd8ef, ground:0xd7dbe0, ambient:0xfff6e0, sunI:1.15, hemiI:0.55, ambI:0.75, weather:'none' },
+  forest: { sky:0xbfe3c9, fog:0xcfead4, ground:0x5e8a52, ambient:0xeaffea, sunI:1.0,  hemiI:0.6,  ambI:0.7,  weather:'leaves' },
+  desert: { sky:0xf2d9a0, fog:0xf0d6a0, ground:0xdcb877, ambient:0xfff0cf, sunI:1.3,  hemiI:0.5,  ambI:0.8,  weather:'dust' },
+  snow:   { sky:0xdfeaf5, fog:0xe8f1fa, ground:0xf2f6fa, ambient:0xffffff, sunI:0.9,  hemiI:0.65, ambI:0.85, weather:'snow' },
+  space:  { sky:0x0c0e22, fog:0x14163a, ground:0x171a34, ambient:0xbcd0ff, sunI:0.15, hemiI:0.2,  ambI:0.35, weather:'stars' },
+  egypt:  { sky:0xf5dca0, fog:0xf2d9a8, ground:0xe0c078, ambient:0xfff0c0, sunI:1.35, hemiI:0.5,  ambI:0.8,  weather:'dust' }
+};
+function biomeAtDist(d){
+  var idx = 0;
+  for(var i=0;i<ZONES.length;i++){ if(d >= ZONES[i].dist) idx = i; }
+  return ZONES[idx].biome;
+}
+
+/* ============================================================
+   THREE.JS SETUP
+   ============================================================ */
+var canvas = document.getElementById('scene');
+var renderer = new THREE.WebGLRenderer({ canvas:canvas, antialias:true, alpha:false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+var scene = new THREE.Scene();
+var FOG_DEFAULT = new THREE.Color(0xbcd8ef);
+// fog removed per feedback — scene renders clear with no mist
+
+var camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 2000);
+camera.position.set(0, 8, 16);
+
+var ambientLight = new THREE.AmbientLight(0xffffff, 0.75);
+scene.add(ambientLight);
+var hemi = new THREE.HemisphereLight(0xbfe0ff, 0xdcd3bd, 0.55);
+scene.add(hemi);
+var sun = new THREE.DirectionalLight(0xfff2d8, 1.15);
+sun.position.set(-40, 90, 40);
+scene.add(sun);
+
+/* ---------- Road path (S-curve). x/z waypoints; car auto-follows the tangent. ---------- */
+var WAYPOINTS = [
+  [0,   20],  [0,   0],   [9,  -70],  [15, -150], [8,  -220],
+  [-9, -260], [-15,-290], [-6, -350], [9,  -380], [15, -410],
+  [6,  -470], [-9, -500], [-15,-530], [-6, -600], [9,  -630],
+  [14, -660], [6,  -720], [0,  -760], [0,  -790], [0,  -830],
+  [8,  -890], [8,  -930], [-8, -990], [0, -1040], [0, -1080], [0, -1120]
+];
+var curvePts = WAYPOINTS.map(function(p){ return new THREE.Vector3(p[0], 0, p[1]); });
+var roadCurve = new THREE.CatmullRomCurve3(curvePts, false, 'catmullrom', 0.5);
+var ROAD_TOTAL_LEN = roadCurve.getLength();
+function tAtDist(d){ return Math.max(0, Math.min(1, d / TOTAL_DIST)); }
+function pointAtDist(d){ return roadCurve.getPointAt(tAtDist(d)); }
+function tangentAtDist(d){ return roadCurve.getTangentAt(tAtDist(d)); }
+function rightAtDist(d){
+  var tan = tangentAtDist(d);
+  return new THREE.Vector3().crossVectors(tan, new THREE.Vector3(0,1,0)).normalize();
+}
+
+/* ---------- Dynamic biome sky/fog: scene.background + fog lerp toward the current stop's biome ---------- */
+scene.background = new THREE.Color(BIOMES.city.sky);
+function updateBiomeVisuals(distance){
+  var biome = BIOMES[biomeAtDist(distance)];
+  if(scene.fog) scene.fog.color.lerp(new THREE.Color(biome.fog), 0.03);
+  scene.background.lerp(new THREE.Color(biome.sky), 0.03);
+  ambientParticles.points.material.color.lerp(new THREE.Color(biome.ambient), 0.03);
+  sun.intensity += (biome.sunI - sun.intensity) * 0.03;
+  hemi.intensity += (biome.hemiI - hemi.intensity) * 0.03;
+  ambientLight.intensity += (biome.ambI - ambientLight.intensity) * 0.03;
+  var starTarget = biome.weather === 'stars' ? 0.85 : 0;
+  starField.material.opacity += (starTarget - starField.material.opacity) * 0.02;
+}
+
+/* ---------- Starfield that fades in near the Space stop ---------- */
+var starField = (function(){
+  var count = 500;
+  var pos = new Float32Array(count*3);
+  for(var i=0;i<count;i++){
+    var d = 400 + Math.random()*700;
+    var pt = pointAtDist(Math.min(d, TOTAL_DIST));
+    pos[i*3] = pt.x + (Math.random()-0.5)*900;
+    pos[i*3+1] = 120 + Math.random()*380;
+    pos[i*3+2] = pt.z + (Math.random()-0.5)*300;
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  var mat = new THREE.PointsMaterial({ color:0xffffff, size:1.4, transparent:true, opacity:0, fog:false, sizeAttenuation:false, depthWrite:false });
+  var pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  return pts;
+})();
+
+/* ---------- Ambient drifting light-dust particles (recolored per biome each frame) ---------- */
+var ambientParticles = (function(){
+  var count = 130;
+  var pos = new Float32Array(count*3);
+  var baseY = new Float32Array(count);
+  var speeds = new Float32Array(count);
+  for(var i=0;i<count;i++){
+    var d = Math.random()*860;
+    var pt = pointAtDist(d);
+    var rt = rightAtDist(d);
+    var off = (Math.random()-0.5)*22;
+    pos[i*3] = pt.x + rt.x*off;
+    pos[i*3+1] = Math.random()*9 + 0.3;
+    pos[i*3+2] = pt.z + rt.z*off;
+    baseY[i] = pos[i*3+1];
+    speeds[i] = 0.004 + Math.random()*0.008;
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  var mat = new THREE.PointsMaterial({ color:0xfff6e0, size:0.16, transparent:true, opacity:0.45, blending:THREE.AdditiveBlending, depthWrite:false });
+  var pts = new THREE.Points(geo, mat);
+  scene.add(pts);
+  return { points:pts, pos:pos, baseY:baseY, speeds:speeds, count:count };
+})();
+function updateAmbientParticles(t, weather){
+  var arr = ambientParticles.pos;
+  for(var i=0;i<ambientParticles.count;i++){
+    if(weather === 'snow'){
+      arr[i*3+1] -= 0.018 + ambientParticles.speeds[i]*0.6;
+      arr[i*3] += Math.sin(t*0.6+i)*0.006;
+      if(arr[i*3+1] < 0.1) arr[i*3+1] = ambientParticles.baseY[i] + 6;
+    } else if(weather === 'dust'){
+      arr[i*3] += Math.sin(t*0.4 + i)*0.012;
+      arr[i*3+1] += Math.sin(t*ambientParticles.speeds[i]*30 + i) * 0.002;
+    } else if(weather === 'leaves'){
+      arr[i*3+1] -= 0.006;
+      arr[i*3] += Math.sin(t*0.8 + i)*0.01;
+      if(arr[i*3+1] < 0.1) arr[i*3+1] = ambientParticles.baseY[i] + 5;
+    } else {
+      arr[i*3+1] += Math.sin(t*ambientParticles.speeds[i]*40 + i) * 0.003;
+    }
+  }
+  ambientParticles.points.geometry.attributes.position.needsUpdate = true;
+}
+
+/* ---------- Road ribbon mesh following the curve (realistic grey asphalt) ---------- */
+function makeRoadTexture(){
+  var c = document.createElement('canvas'); c.width=256; c.height=2048;
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = '#494c54'; ctx.fillRect(0,0,256,2048);
+  // subtle asphalt noise
+  for(var n=0;n<3000;n++){
+    ctx.fillStyle = 'rgba(255,255,255,'+(Math.random()*0.03)+')';
+    ctx.fillRect(Math.random()*256, Math.random()*2048, 2, 2);
+  }
+  ctx.fillStyle = '#f2f2ee';
+  for(var y=0; y<2048; y+=80){ ctx.fillRect(122, y, 12, 44); }
+  ctx.strokeStyle = 'rgba(245,220,120,0.85)'; ctx.lineWidth = 4;
+  ctx.strokeRect(10,0,3,2048); ctx.strokeRect(243,0,3,2048);
+  return c;
+}
+var roadTex = new THREE.CanvasTexture(makeRoadTexture());
+roadTex.wrapS = THREE.RepeatWrapping; roadTex.wrapT = THREE.RepeatWrapping;
+
+function buildRoadMesh(){
+  var segments = 260;
+  var width = 16;
+  var positions = [], uvs = [], indices = [];
+  var up = new THREE.Vector3(0,1,0);
+  for(var i=0;i<=segments;i++){
+    var d = (i/segments) * TOTAL_DIST;
+    var pt = pointAtDist(d);
+    var tan = tangentAtDist(d);
+    var right = new THREE.Vector3().crossVectors(tan, up).normalize();
+    var l = pt.clone().addScaledVector(right, -width/2);
+    var r = pt.clone().addScaledVector(right, width/2);
+    positions.push(l.x,l.y,l.z, r.x,r.y,r.z);
+    var v = (i/segments) * 40;
+    uvs.push(0, v, 1, v);
+  }
+  for(var i=0;i<segments;i++){
+    var a=i*2,b=i*2+1,c=i*2+2,dd=i*2+3;
+    indices.push(a,b,c, b,dd,c);
+  }
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs,2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+var road = new THREE.Mesh(buildRoadMesh(), new THREE.MeshStandardMaterial({ map:roadTex, roughness:0.9, metalness:0.05 }));
+scene.add(road);
+
+/* ---------- Ground: one colored band per stop, matching its biome ---------- */
+for(var gi=0; gi<ZONES.length; gi++){
+  var zStartD = ZONES[gi].dist;
+  var zEndD = (gi+1<ZONES.length) ? ZONES[gi+1].dist : TOTAL_DIST + 40;
+  var zStart = pointAtDist(zStartD).z;
+  var zEnd = pointAtDist(Math.min(zEndD, TOTAL_DIST)).z - (gi===ZONES.length-1 ? 60 : 0);
+  var midZ = (zStart+zEnd)/2;
+  var len = Math.abs(zStart-zEnd) + 10;
+  var band = new THREE.Mesh(new THREE.PlaneGeometry(420, len), new THREE.MeshStandardMaterial({ color:BIOMES[ZONES[gi].biome].ground, roughness:0.95 }));
+  band.rotation.x = -Math.PI/2;
+  band.position.set(0, -0.05, midZ);
+  scene.add(band);
+}
+
+/* ---------- Biome props: buildings / trees / cacti / snow pines / asteroids ---------- */
+var glassColors = [0x9fc6e0, 0xb9d8ec, 0x8fb9d8, 0xffb454, 0x7ee0c8];
+var facadeColors = [0xe7e2d4, 0xdfe1e4, 0xece6da, 0xd9dde2];
+function makeWindowStrip(w, col, isGlass){
+  return new THREE.Mesh(new THREE.BoxGeometry(w, 0.32, 0.02),
+    new THREE.MeshStandardMaterial({ color:col, roughness:isGlass?0.15:0.6, metalness:isGlass?0.6:0.1 }));
+}
+function makeBuilding(x,z){
+  var h = 8 + Math.random()*26;
+  var w = 3.4 + Math.random()*3.4;
+  var facade = facadeColors[Math.floor(Math.random()*facadeColors.length)];
+  var glass = glassColors[Math.floor(Math.random()*glassColors.length)];
+  var g = new THREE.Group();
+  var body = new THREE.Mesh(new THREE.BoxGeometry(w, h, w), new THREE.MeshStandardMaterial({color:facade, roughness:0.8, metalness:0.05}));
+  body.position.y = h/2;
+  g.add(body);
+  var rows = Math.floor(h/2.4);
+  for(var i=0;i<rows;i++){
+    var s1 = makeWindowStrip(w*0.84, glass, true);
+    s1.position.set(0, 1.6 + i*2.4, w/2+0.02); g.add(s1);
+    var s2 = s1.clone(); s2.position.z = -(w/2+0.02); g.add(s2);
+  }
+  var cap = new THREE.Mesh(new THREE.BoxGeometry(w*0.35,0.8,w*0.35), new THREE.MeshStandardMaterial({color:facade, roughness:0.8}));
+  cap.position.y = h + 0.4; g.add(cap);
+  g.position.set(x, 0, z);
+  return g;
+}
+function makeTree(x,z){
+  var g = new THREE.Group();
+  var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.25,0.32,2.2,6), new THREE.MeshStandardMaterial({color:0x6b4a30, roughness:0.9}));
+  trunk.position.y = 1.1; g.add(trunk);
+  var greens = [0x3f7d4a,0x357044,0x4a8a55];
+  var h = 3.6 + Math.random()*2.6;
+  for(var i=0;i<3;i++){
+    var r = 1.6 - i*0.4 + Math.random()*0.3;
+    var ch = h*0.42;
+    var cone = new THREE.Mesh(new THREE.ConeGeometry(r, ch, 7), new THREE.MeshStandardMaterial({color:greens[i%greens.length], roughness:0.85}));
+    cone.position.y = 2.1 + i*ch*0.62;
+    cone.userData.coneH = ch; cone.userData.coneR = r;
+    g.add(cone);
+  }
+  // a few colorful blossoms scattered on the foliage, for a little pop of color
+  if(Math.random() > 0.4){
+    var blossomColors = [0xff8fb3, 0xffd166, 0xc78fff, 0xff9d5c];
+    var bc = blossomColors[Math.floor(Math.random()*blossomColors.length)];
+    var blossomMat = new THREE.MeshStandardMaterial({color:bc, roughness:0.6});
+    for(var bi=0;bi<4;bi++){
+      var blossom = new THREE.Mesh(new THREE.SphereGeometry(0.14,6,6), blossomMat);
+      var ang = Math.random()*Math.PI*2, rad = 0.9+Math.random()*0.8;
+      blossom.position.set(Math.cos(ang)*rad, 2.6+Math.random()*1.6, Math.sin(ang)*rad);
+      g.add(blossom);
+    }
+  }
+  g.position.set(x,0,z);
+  g.scale.setScalar(0.8+Math.random()*0.6);
+  return g;
+}
+function makeSnowTree(x,z){
+  var g = makeTree(x,z);
+  var caps = [];
+  g.children.forEach(function(c){
+    if(c.userData.coneH){
+      var cap = new THREE.Mesh(new THREE.ConeGeometry(c.userData.coneR*0.55, c.userData.coneH*0.3, 7), new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.6}));
+      cap.position.set(c.position.x, c.position.y + c.userData.coneH*0.4, c.position.z);
+      caps.push(cap);
+    }
+  });
+  caps.forEach(function(c){ g.add(c); });
+  // a few colorful fairy-light dots for a festive, slightly colorful touch
+  if(Math.random() > 0.5){
+    var lightColors = [0xff5f6d, 0x5fc9ff, 0xffd166, 0x8fff9e];
+    for(var li=0; li<5; li++){
+      var lc = lightColors[Math.floor(Math.random()*lightColors.length)];
+      var bulb = new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6), new THREE.MeshStandardMaterial({color:lc, emissive:lc, emissiveIntensity:0.7}));
+      var ang = Math.random()*Math.PI*2, rad = 0.7+Math.random()*0.9;
+      bulb.position.set(Math.cos(ang)*rad, 1.8+Math.random()*2.2, Math.sin(ang)*rad);
+      g.add(bulb);
+    }
+  }
+  return g;
+}
+function makeCactus(x,z){
+  var g = new THREE.Group();
+  var mat = new THREE.MeshStandardMaterial({color:0x5c8f5a, roughness:0.8});
+  var body = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.4,2.6,8), mat);
+  body.position.y=1.3; g.add(body);
+  var arm = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.2,1.1,6), mat);
+  arm.position.set(-0.45,1.6,0); arm.rotation.z = 0.6; g.add(arm);
+  var armCap = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.18,0.8,6), mat);
+  armCap.position.set(-0.85,2.2,0); g.add(armCap);
+  // small flower on top, a little colorful accent typical of desert cacti
+  if(Math.random() > 0.4){
+    var flowerColors = [0xff6f9c, 0xff9d3d, 0xffe066];
+    var fc = flowerColors[Math.floor(Math.random()*flowerColors.length)];
+    var flower = new THREE.Mesh(new THREE.SphereGeometry(0.16,8,8), new THREE.MeshStandardMaterial({color:fc, roughness:0.5}));
+    flower.position.set(0, 2.75, 0);
+    g.add(flower);
+  }
+  g.position.set(x,0,z); g.scale.setScalar(0.8+Math.random()*0.6);
+  return g;
+}
+function makeRock(x,z){
+  var g = new THREE.Group();
+  var rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.55+Math.random()*0.55,0), new THREE.MeshStandardMaterial({color:0xb08a5c, roughness:0.95}));
+  rock.rotation.set(Math.random(),Math.random(),Math.random());
+  g.add(rock);
+  g.position.set(x,0.3,z);
+  return g;
+}
+function makeDesertProp(x,z){ return Math.random()>0.5 ? makeCactus(x,z) : makeRock(x,z); }
+function makeSpaceProp(x,z){
+  var g = new THREE.Group();
+  if(Math.random()>0.5){
+    var ast = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7+Math.random()*0.8,0), new THREE.MeshStandardMaterial({color:0x555a72, roughness:0.9}));
+    ast.position.y = 3+Math.random()*9;
+    g.add(ast);
+  } else {
+    var col = [0x8f7cf0,0x22D3EE,0xFFB454][Math.floor(Math.random()*3)];
+    var planet = new THREE.Mesh(new THREE.SphereGeometry(1.1+Math.random()*1.2,12,12), new THREE.MeshStandardMaterial({color:col, emissive:col, emissiveIntensity:0.4, roughness:0.5}));
+    planet.position.y = 5+Math.random()*10;
+    g.add(planet);
+  }
+  g.position.set(x,0,z);
+  return g;
+}
+function makePyramid(x,z){
+  var g = new THREE.Group();
+  var h = 5 + Math.random()*7;
+  var r = h*0.78;
+  var stoneCol = [0xd9b878,0xcaa968,0xe0c58a][Math.floor(Math.random()*3)];
+  var pyr = new THREE.Mesh(new THREE.ConeGeometry(r, h, 4), new THREE.MeshStandardMaterial({color:stoneCol, roughness:0.9, flatShading:true}));
+  pyr.rotation.y = Math.PI/4;
+  pyr.position.y = h/2;
+  g.add(pyr);
+  g.position.set(x,0,z);
+  g.scale.setScalar(0.85+Math.random()*0.5);
+  return g;
+}
+function makeObelisk(x,z){
+  var g = new THREE.Group();
+  var h = 3.5 + Math.random()*2.5;
+  var mat = new THREE.MeshStandardMaterial({color:0xc7a45f, roughness:0.85});
+  var shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.28,0.36,h,4), mat);
+  shaft.rotation.y = Math.PI/4; shaft.position.y = h/2; g.add(shaft);
+  var cap = new THREE.Mesh(new THREE.ConeGeometry(0.32,0.55,4), mat);
+  cap.rotation.y = Math.PI/4; cap.position.y = h+0.25; g.add(cap);
+  g.position.set(x,0,z);
+  return g;
+}
+function makePalm(x,z){
+  var g = new THREE.Group();
+  var trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.24,3.2,6), new THREE.MeshStandardMaterial({color:0x8a6b45, roughness:0.9}));
+  trunk.position.y = 1.6; trunk.rotation.z = (Math.random()-0.5)*0.2; g.add(trunk);
+  var leafMat = new THREE.MeshStandardMaterial({color:0x4a9a52, roughness:0.8, side:THREE.DoubleSide});
+  for(var i=0;i<6;i++){
+    var leaf = new THREE.Mesh(new THREE.ConeGeometry(0.22,2.0,4), leafMat);
+    leaf.position.y = 3.2;
+    leaf.rotation.z = Math.PI/2.1;
+    leaf.rotation.y = (i/6)*Math.PI*2;
+    leaf.position.x = Math.cos((i/6)*Math.PI*2)*0.6;
+    leaf.position.z = Math.sin((i/6)*Math.PI*2)*0.6;
+    g.add(leaf);
+  }
+  g.position.set(x,0,z);
+  g.scale.setScalar(0.85+Math.random()*0.4);
+  return g;
+}
+function makeEgyptProp(x,z){
+  var r = Math.random();
+  if(r < 0.45) return makePyramid(x,z);
+  if(r < 0.75) return makeObelisk(x,z);
+  return makePalm(x,z);
+}
+var propGenerators = { city:makeBuilding, forest:makeTree, desert:makeDesertProp, snow:makeSnowTree, space:makeSpaceProp, egypt:makeEgyptProp };
+for(var pi=0; pi<ZONES.length; pi++){
+  var segStart = Math.max(0, ZONES[pi].dist - 40);
+  var segEnd = Math.min((pi+1<ZONES.length) ? ZONES[pi+1].dist - 10 : TOTAL_DIST + 10, TOTAL_DIST);
+  var gen = propGenerators[ZONES[pi].biome];
+  var isSnow = ZONES[pi].biome === 'snow';
+  var stepSize = isSnow ? (7 + Math.random()*5) : (14 + Math.random()*10);
+  var minOff = isSnow ? 9 : 15;
+  var offRange = isSnow ? 14 : 18;
+  var doubleChance = isSnow ? 0.7 : 0.35;
+  for(var pd=segStart; pd<segEnd; pd += stepSize){
+    var ppt = pointAtDist(pd);
+    var prt = rightAtDist(pd);
+    var poffA = minOff + Math.random()*offRange;
+    var pa = ppt.clone().addScaledVector(prt, -poffA);
+    scene.add(gen(pa.x, pa.z));
+    if(Math.random()>(1-doubleChance)){
+      var poffB = minOff + Math.random()*offRange;
+      var pb = ppt.clone().addScaledVector(prt, poffB);
+      scene.add(gen(pb.x, pb.z));
+    }
+  }
+}
+
+/* ---------- Zone gates: clean signage plaques, oriented to the curve ---------- */
+function makeLabelSprite(text, colorHex){
+  var c = document.createElement('canvas'); c.width=560; c.height=200;
+  var ctx = c.getContext('2d');
+  ctx.clearRect(0,0,560,200);
+  var rad = 26;
+  ctx.fillStyle = colorHex;
+  ctx.shadowColor = 'rgba(20,20,30,0.35)'; ctx.shadowBlur = 22; ctx.shadowOffsetY = 8;
+  roundRect(ctx, 20, 20, 520, 160, rad); ctx.fill();
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  ctx.font = '700 66px "Space Grotesk", sans-serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillStyle = '#0c0d16';
+  ctx.fillText(text, 280, 108);
+  var tex = new THREE.CanvasTexture(c);
+  var mat = new THREE.SpriteMaterial({ map:tex, transparent:true, depthWrite:false, fog:false });
+  var spr = new THREE.Sprite(mat);
+  spr.scale.set(11, 3.9, 1);
+  return spr;
+}
+function roundRect(ctx,x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+function makeGate(zone){
+  var col = new THREE.Color(zone.color);
+  var g = new THREE.Group();
+  var pillarMat = new THREE.MeshStandardMaterial({ color:0xf0f1f4, roughness:0.5, metalness:0.35 });
+  var pGeo = new THREE.BoxGeometry(0.45, 8, 0.45);
+  var left = new THREE.Mesh(pGeo, pillarMat); left.position.set(-8.2, 4, 0);
+  var right = new THREE.Mesh(pGeo, pillarMat); right.position.set(8.2, 4, 0);
+  var top = new THREE.Mesh(new THREE.BoxGeometry(17, 0.4, 0.4), new THREE.MeshStandardMaterial({color:col.getHex(), roughness:0.4, metalness:0.3}));
+  top.position.set(0, 8, 0);
+  g.add(left, right, top);
+  if(zone.type !== 'hero'){
+    var label = makeLabelSprite(zone.label, zone.color);
+    label.position.set(0, 10.4, 0);
+    g.add(label);
+  }
+  var pt = pointAtDist(zone.dist);
+  var tan = tangentAtDist(zone.dist);
+  g.position.copy(pt);
+  g.rotation.y = Math.atan2(tan.x, tan.z);
+  return g;
+}
+ZONES.forEach(function(z){ if(z.dist !== 0) scene.add(makeGate(z)); });
+
+// finish line — clean checkered-style bar
+var finishPt = pointAtDist(1108);
+var finishTan = tangentAtDist(1108);
+function makeCheckerTexture(){
+  var c = document.createElement('canvas'); c.width=256; c.height=32;
+  var ctx = c.getContext('2d');
+  for(var i=0;i<16;i++){ ctx.fillStyle = (i%2===0)?'#16171f':'#f3f4f7'; ctx.fillRect(i*16,0,16,32); }
+  return new THREE.CanvasTexture(c);
+}
+var finishMat = new THREE.MeshStandardMaterial({ map:makeCheckerTexture(), metalness:0.3, roughness:0.5 });
+var fBeam = new THREE.Mesh(new THREE.BoxGeometry(17,0.5,0.5), finishMat);
+fBeam.position.copy(finishPt); fBeam.position.y = 0.45;
+fBeam.rotation.y = Math.atan2(finishTan.x, finishTan.z);
+scene.add(fBeam);
+var finishPostMat = new THREE.MeshStandardMaterial({ color:0xf0f1f4, roughness:0.5, metalness:0.35 });
+[-8.2, 8.2].forEach(function(off){
+  var post = new THREE.Mesh(new THREE.BoxGeometry(0.45, 8, 0.45), finishPostMat);
+  var pPos = finishPt.clone().addScaledVector(new THREE.Vector3().crossVectors(finishTan, new THREE.Vector3(0,1,0)).normalize(), off);
+  post.position.copy(pPos); post.position.y = 4;
+  scene.add(post);
+});
+
+/* ---------- Confetti burst, fired once when the finish line is crossed ---------- */
+var confetti = (function(){
+  var count = 140;
+  var confColors = [0xff5f6d, 0x22D3EE, 0xffd166, 0x8f7cf0, 0x5fbf7a];
+  var sprites = [];
+  var mat = new THREE.SpriteMaterial({ color:0xffffff, transparent:true, opacity:0 });
+  for(var i=0;i<count;i++){
+    var s = new THREE.Sprite(mat.clone());
+    s.material.color.setHex(confColors[i % confColors.length]);
+    s.scale.set(0.01,0.01,0.01);
+    s.userData.life = 0;
+    scene.add(s);
+    sprites.push(s);
+  }
+  return sprites;
+})();
+var confettiFired = false;
+function fireConfetti(){
+  confetti.forEach(function(s){
+    s.position.copy(finishPt); s.position.y = 3;
+    var ang = Math.random()*Math.PI*2, speedC = 0.15+Math.random()*0.25;
+    s.userData.vel = new THREE.Vector3(Math.cos(ang)*speedC, 0.25+Math.random()*0.2, Math.sin(ang)*speedC);
+    s.userData.life = 1.0;
+    s.scale.set(0.5,0.5,0.5);
+    s.material.opacity = 1;
+  });
+}
+function updateConfetti(){
+  confetti.forEach(function(s){
+    if(s.userData.life > 0){
+      s.userData.life -= 0.012;
+      s.userData.vel.y -= 0.012;
+      s.position.add(s.userData.vel);
+      s.material.opacity = Math.max(0, s.userData.life);
+    }
+  });
+}
+
+/* ============================================================
+   CAR  (scaled up)
+   ============================================================ */
+function buildCar(){
+  var g = new THREE.Group();
+  var bodyGroup = new THREE.Group(); g.add(bodyGroup); // separated so we can bob/pitch it independently of wheels
+  var paintColor = 0x2e3438; // dark graphite, muscle-car style
+  var bodyMat = new THREE.MeshPhysicalMaterial({ color:paintColor, metalness:0.55, roughness:0.24, clearcoat:0.85, clearcoatRoughness:0.1 });
+  var trimMat = new THREE.MeshStandardMaterial({ color:0x121316, metalness:0.6, roughness:0.4 });
+  var chromeMat = new THREE.MeshStandardMaterial({ color:0xc7cbd4, metalness:0.9, roughness:0.2 });
+  var glassMat = new THREE.MeshPhysicalMaterial({ color:0x0d1420, metalness:0.2, roughness:0.08, transparent:true, opacity:0.6, clearcoat:0.5 });
+  var stripeMat = new THREE.MeshStandardMaterial({ color:0xf2f2f2, roughness:0.4, metalness:0.1 });
+
+  // ---- original muscle-car-style body: long hood, short low cabin set well back ----
+  var chassis = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.58, 4.4), bodyMat);
+  chassis.position.set(0, 0.44, 0);
+  bodyGroup.add(chassis);
+
+  // twin racing stripes down the hood/roof/decklid (an original livery, not any specific game's)
+  [-0.22, 0.22].forEach(function(sx){
+    var stripe = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 4.3), stripeMat);
+    stripe.position.set(sx, 0.735, 0);
+    bodyGroup.add(stripe);
+  });
+
+  // low cabin, pushed toward the rear half for a long-hood muscle-car stance
+  var cabin = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.44, 1.7), glassMat);
+  cabin.position.set(0, 0.74, -0.55);
+  bodyGroup.add(cabin);
+  var windshield = new THREE.Mesh(new THREE.BoxGeometry(1.46, 0.38, 0.08), glassMat);
+  windshield.position.set(0, 0.58, 0.32); windshield.rotation.x = -0.6;
+  bodyGroup.add(windshield);
+  var rearGlass = new THREE.Mesh(new THREE.BoxGeometry(1.46, 0.34, 0.08), glassMat);
+  rearGlass.position.set(0, 0.56, -1.4); rearGlass.rotation.x = 0.55;
+  bodyGroup.add(rearGlass);
+
+  // hood scoop (classic muscle-car detail)
+  var scoop = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.08, 0.9), trimMat);
+  scoop.position.set(0, 0.75, 1.2);
+  bodyGroup.add(scoop);
+
+  // beltline + door seams
+  var beltline = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.045, 2.6), trimMat);
+  beltline.position.set(0, 0.58, -0.5); bodyGroup.add(beltline);
+  var doorSeamR = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.46, 1.5), trimMat);
+  doorSeamR.position.set(1.02, 0.46, -0.5); bodyGroup.add(doorSeamR);
+  var doorSeamL = doorSeamR.clone(); doorSeamL.position.x = -1.02; bodyGroup.add(doorSeamL);
+
+  // front + rear bumpers
+  var bumperF = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.28, 0.22), trimMat); bumperF.position.set(0, 0.24, 2.15); bodyGroup.add(bumperF);
+  var bumperR = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.3, 0.24), trimMat); bumperR.position.set(0, 0.26, -2.15); bodyGroup.add(bumperR);
+  var diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.08, 0.2), chromeMat); diffuser.position.set(0, 0.1, -2.2); bodyGroup.add(diffuser);
+
+  // headlights (rectangular, slightly recessed)
+  var hlGeo = new THREE.BoxGeometry(0.36, 0.14, 0.06);
+  var hlMat = new THREE.MeshBasicMaterial({color:0xffffff});
+  [[-0.68,0.5,2.18],[0.68,0.5,2.18]].forEach(function(p){ var s=new THREE.Mesh(hlGeo,hlMat); s.position.set(p[0],p[1],p[2]); bodyGroup.add(s); });
+  var headlight = new THREE.SpotLight(0xffffff, 1.1, 40, Math.PI/6, 0.4);
+  headlight.position.set(0,0.9,2.2); headlight.target.position.set(0,0,10);
+  bodyGroup.add(headlight); bodyGroup.add(headlight.target);
+
+  // grille
+  var grille = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.16, 0.06), trimMat);
+  grille.position.set(0, 0.3, 2.18); bodyGroup.add(grille);
+  for(var gs=0; gs<4; gs++){
+    var bar = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.16, 0.02), chromeMat);
+    bar.position.set(-0.4 + gs*0.27, 0.3, 2.21); bodyGroup.add(bar);
+  }
+
+  // side mirrors + door handles
+  [-1.0, 1.0].forEach(function(mx){
+    var mirror = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.12,0.24), bodyMat);
+    mirror.position.set(mx, 0.72, 0.25);
+    bodyGroup.add(mirror);
+    var handle = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.05,0.22), trimMat);
+    handle.position.set(mx*1.0, 0.56, -0.55);
+    bodyGroup.add(handle);
+  });
+
+  // wheels — wide muscle-car stance
+  var wheels = [];
+  var wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.34, 20);
+  var wheelMat = new THREE.MeshStandardMaterial({color:0x0a0a0c, roughness:0.85});
+  var rimMat = new THREE.MeshStandardMaterial({color:0xc7cbd4, metalness:0.9, roughness:0.2});
+  [[-1.08,0.42,1.5],[1.08,0.42,1.5],[-1.08,0.42,-1.5],[1.08,0.42,-1.5]].forEach(function(p){
+    var wg = new THREE.Group();
+    var w = new THREE.Mesh(wheelGeo, wheelMat);
+    w.rotation.z = Math.PI/2; wg.add(w);
+    var rim = new THREE.Mesh(new THREE.TorusGeometry(0.21,0.04,6,10), rimMat);
+    rim.rotation.y = Math.PI/2; wg.add(rim);
+    for(var s=0;s<5;s++){
+      var spoke = new THREE.Mesh(new THREE.BoxGeometry(0.38,0.04,0.04), rimMat);
+      spoke.rotation.x = (s/5)*Math.PI*2; wg.add(spoke);
+    }
+    wg.position.set(p[0],p[1],p[2]);
+    g.add(wg);
+    wheels.push(wg);
+  });
+
+  // quad round taillights (classic muscle-car detail) + turn signals
+  var tlMat = new THREE.MeshBasicMaterial({color:0xe0432f});
+  var tailLights = [];
+  [-0.75,-0.4,0.4,0.75].forEach(function(tx){
+    var s = new THREE.Mesh(new THREE.CircleGeometry(0.13,12), tlMat.clone());
+    s.position.set(tx, 0.5, -2.19); s.rotation.y = Math.PI;
+    bodyGroup.add(s); tailLights.push(s);
+  });
+  var signalMat = new THREE.MeshBasicMaterial({color:0xff9d3d, transparent:true, opacity:0});
+  var turnSignals = { left:null, right:null };
+  var sigL = new THREE.Mesh(new THREE.SphereGeometry(0.1,6,6), signalMat.clone()); sigL.position.set(-1.02,0.42,1.9); bodyGroup.add(sigL); turnSignals.left = sigL;
+  var sigR = new THREE.Mesh(new THREE.SphereGeometry(0.1,6,6), signalMat.clone()); sigR.position.set(1.02,0.42,1.9); bodyGroup.add(sigR); turnSignals.right = sigR;
+
+  g.scale.set(1.85, 1.85, 1.85);
+  g.userData.bodyGroup = bodyGroup;
+  g.userData.wheels = wheels;
+  g.userData.tailLights = tailLights;
+  g.userData.turnSignals = turnSignals;
+  return g;
+}
+var car = buildCar();
+scene.add(car);
+
+/* ============================================================
+   INPUT
+   ============================================================ */
+
+/* ---------- Scroll-driven progress: scrolling the page drives the car ---------- */
+var PX_PER_UNIT = 7;
+var scrollSpacer = document.getElementById('scrollSpacer');
+var scrollTargetDistance = 0;
+function setupScrollSpacer(){
+  scrollSpacer.style.height = (TOTAL_DIST * PX_PER_UNIT + window.innerHeight) + 'px';
+}
+function onScroll(){
+  var maxScroll = scrollSpacer.offsetHeight - window.innerHeight;
+  var ratio = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+  scrollTargetDistance = Math.max(0, Math.min(TOTAL_DIST - 4, ratio * TOTAL_DIST));
+}
+window.addEventListener('scroll', onScroll, {passive:true});
+
+/* ============================================================
+   HUD build
+   ============================================================ */
+var rail = document.getElementById('rail');
+ZONES.forEach(function(z, i){
+  var wrap = document.createElement('div'); wrap.className='dot-wrap'; wrap.style.setProperty('--zc', z.color);
+  var dot = document.createElement('div'); dot.className='dot'; dot.id='dot-'+i;
+  var lab = document.createElement('div'); lab.className='dot-label'; lab.textContent=z.label;
+  wrap.appendChild(dot); wrap.appendChild(lab); rail.appendChild(wrap);
+});
+
+var panel = document.getElementById('panel');
+var panelInner = document.getElementById('panelInner');
+function setPanelSide(side){
+  panel.classList.toggle('side-right', side === 'right');
+}
+function renderPanel(zone){
+  panelInner.style.setProperty('--zc', zone.color);
+  setPanelSide(zone.side || 'left');
+  var html = '<div class="eyebrow">'+zone.eyebrow+'</div><h2>'+zone.title+'</h2><p>'+zone.body+'</p>';
+  if(zone.type==='project'){
+    html += '<div class="tags">'+zone.tags.map(function(t){return '<span class="tag">'+t+'</span>';}).join('')+'</div>';
+    html += '<a class="link" href="'+zone.link+'" target="_blank" rel="noopener">View on GitHub →</a>';
+  } else if(zone.type==='skills'){
+    html += '<div class="skills-grid">'+zone.skills.map(function(s){return '<span class="skill-pill">'+s+'</span>';}).join('')+'</div>';
+  } else if(zone.type==='contact'){
+    html += '<div class="contact-row">'+
+      '<a class="link" href="mailto:'+zone.email+'">Email Raiden →</a>'+
+      '<a class="link" style="background:transparent;color:'+zone.color+';border:1px solid '+zone.color+';box-shadow:none;" href="'+zone.github+'" target="_blank" rel="noopener">GitHub Profile</a>'+
+      '</div>';
+  }
+  panelInner.innerHTML = html;
+}
+
+/* ============================================================
+   ANIMATION LOOP
+   ============================================================ */
+var distance = 0;
+var lane = 0;
+var speed = 0;
+var BASE_MAX_SPEED = 1.55;
+var ACCEL = 0.028;
+var BRAKE = 0.05;
+var FRICTION = 0.014;
+var visualBank = 0;
+var prevSpeed = 0;
+var wheelSpin = 0;
+var blinkTimer = 0;
+var activeZoneIdx = -1;
+var currentDisplay = 'none';
+var started = false;
+var clock = new THREE.Clock();
+
+
+function nearestZoneIndex(d){
+  var best=-1, bestDist=Infinity;
+  for(var i=0;i<ZONES.length;i++){
+    var diff = d - ZONES[i].dist;
+    var dd = Math.abs(diff);
+    if(diff >= -55 && diff <= 55 && dd < bestDist){ bestDist = dd; best = i; }
+  }
+  return best;
+}
+function updateRail(){
+  ZONES.forEach(function(z,i){
+    var dot = document.getElementById('dot-'+i);
+    dot.classList.remove('active','passed');
+    dot.style.setProperty('--zc', z.color);
+    if(i === activeZoneIdx){ dot.classList.add('active'); }
+    else if(distance > z.dist + 10){ dot.classList.add('passed'); }
+  });
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  var t = clock.getElapsedTime();
+  updateAmbientParticles(t, BIOMES[biomeAtDist(distance)].weather);
+
+  if(started){
+    var steerAmt = 0;
+
+    var prevDistanceFrame = distance;
+    distance += (scrollTargetDistance - distance) * 0.09;
+    distance = Math.max(0, Math.min(TOTAL_DIST - 4, distance));
+    speed = distance - prevDistanceFrame;
+
+    var pt = pointAtDist(distance);
+    var tan = tangentAtDist(distance);
+    var right = new THREE.Vector3().crossVectors(tan, new THREE.Vector3(0,1,0)).normalize();
+    var carPos = pt.clone().addScaledVector(right, lane);
+    car.position.copy(carPos);
+    var heading = Math.atan2(tan.x, tan.z);
+    car.rotation.y = heading + (-steerAmt*0.08);
+    car.rotation.z = visualBank;
+
+    // ---- supercar detail animation ----
+    var accelDelta = speed - prevSpeed; prevSpeed = speed;
+    var bodyGroup = car.userData.bodyGroup;
+    // suspension dive under braking, squat under acceleration, gentle idle bob otherwise
+    var targetPitch = THREE.MathUtils.clamp(-accelDelta * 5.5, -0.06, 0.06);
+    bodyGroup.rotation.x += (targetPitch - bodyGroup.rotation.x) * 0.15;
+    var idleBob = Math.sin(t*7) * 0.006 * (0.3 + Math.min(1,Math.abs(speed)/BASE_MAX_SPEED));
+    bodyGroup.position.y = idleBob;
+    // wheels spin proportional to speed
+    wheelSpin += speed * 2.6;
+    car.userData.wheels.forEach(function(wg){ wg.children[0].rotation.x = wheelSpin; });
+    // brake lights brighten when braking / decelerating hard
+    var braking = accelDelta < -0.02;
+    car.userData.tailLights.forEach(function(tl){
+      tl.material.color.setHex(braking ? 0xff5540 : 0xe0432f);
+      tl.scale.setScalar(braking ? 1.35 : 1.0);
+    });
+
+    // camera chase — follows behind along the tangent direction
+    var behind = pt.clone().addScaledVector(tan, -13).addScaledVector(right, lane*0.4);
+    behind.y = 7.2;
+    var desired = behind;
+    camera.position.lerp(desired, 0.07);
+    var lookTarget = pt.clone().addScaledVector(tan, 14); lookTarget.y = 2.2;
+    camera.lookAt(lookTarget);
+    camera.updateProjectionMatrix();
+
+    roadTex.offset.y = (distance * -0.05) % 1;
+
+    var newIdx = nearestZoneIndex(distance);
+    if(currentDisplay !== newIdx){
+      currentDisplay = newIdx;
+      activeZoneIdx = newIdx;
+      if(newIdx >= 0){
+        renderPanel(ZONES[newIdx]); panel.classList.add('show');
+      } else {
+        panel.classList.remove('show');
+      }
+      updateRail();
+    }
+    updateBiomeVisuals(distance);
+
+    var speedRatio = Math.min(1, Math.abs(speed)/BASE_MAX_SPEED);
+    document.getElementById('speedLines').style.opacity = Math.max(0, (speedRatio-0.55))*1.8;
+
+    if(!confettiFired && distance >= TOTAL_DIST - 16){
+      confettiFired = true;
+      fireConfetti();
+    }
+
+    var kmh = Math.round(Math.abs(speed) * 90);
+    document.getElementById('speedVal').textContent = kmh;
+    document.getElementById('speedBarFill').style.width = Math.min(100, (Math.abs(speed)/BASE_MAX_SPEED)*100) + '%';
+  }
+  updateConfetti();
+  renderer.render(scene, camera);
+}
+animate();
+
+/* ============================================================
+   START
+   ============================================================ */
+document.getElementById('startBtn').addEventListener('click', function(){
+  document.getElementById('startOverlay').classList.add('hidden');
+  document.getElementById('hud').classList.add('visible');
+  setupScrollSpacer();
+  scrollSpacer.style.display = 'block';
+  window.scrollTo(0,0);
+  scrollTargetDistance = 0;
+  started = true;
+  activeZoneIdx = 0; currentDisplay = 0;
+  renderPanel(ZONES[0]);
+  panel.classList.add('show');
+  updateRail();
+  setTimeout(function(){ if(distance < 90) { panel.classList.remove('show'); } }, 3200);
+});
+
+window.addEventListener('resize', function(){
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if(started){ setupScrollSpacer(); onScroll(); }
+});
+
+})();
+</script>
+</body>
+</html>
